@@ -1,0 +1,9 @@
+# Upstream reference checkouts (independent clones with their own .git)
+.codex-src/
+.kimi-src/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*~

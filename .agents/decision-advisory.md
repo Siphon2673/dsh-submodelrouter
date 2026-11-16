@@ -1,1 +1,0 @@
-/home/elder/projects/elder-mattskills/.agents/decision-advisory.md

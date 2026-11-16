@@ -33,6 +33,7 @@ export class ScriptedAdapter extends LlmAdapter {
    * @param {readonly string[]} [options.efforts] - advertised effort ids.
    * @param {readonly string[]} [options.unknownModels] - ids that throw UNKNOWN_MODEL.
    * @param {readonly string[]} [options.genericFailures] - ids whose resolution throws a plain Error.
+   * @param {string | undefined} [options.holdText] - prompt substring whose request waits for release().
    */
   constructor(options = {}) {
     super()
@@ -40,6 +41,10 @@ export class ScriptedAdapter extends LlmAdapter {
     this.efforts = options.efforts ?? ['low', 'high']
     this.unknownModels = new Set(options.unknownModels ?? [])
     this.genericFailures = new Set(options.genericFailures ?? [])
+    this.holdText = options.holdText
+    this.held = new Promise((resolve) => {
+      this.release = resolve
+    })
     this.calls = []
   }
 
@@ -78,6 +83,14 @@ export class ScriptedAdapter extends LlmAdapter {
   /** @inheritdoc */
   async *stream(options) {
     this.calls.push(options)
+    if (this.holdText !== undefined) {
+      const promptText = options.messages
+        .flatMap((message) => message.content)
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text)
+        .join('\n')
+      if (promptText.includes(this.holdText)) await this.held
+    }
     yield { type: 'block-start', index: 0, blockType: 'text' }
     yield { type: 'text-delta', index: 0, text: 'scripted answer' }
     yield { type: 'block-end', index: 0, block: { type: 'text', text: 'scripted answer' } }
@@ -104,13 +117,16 @@ export async function createHarness(options = {}) {
   await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
   ctx.llm.registerAdapter([PROVIDER], adapter)
   await ctx.plugin(Persistence, { root, compression: 'none' })
-  await ctx.plugin(SubagentRuntime, { maxDepth: 1, maxActiveSubagents: 8 })
+  await ctx.plugin(SubagentRuntime, {
+    maxDepth: 1,
+    maxActiveSubagents: options.maxActiveSubagents ?? 8,
+  })
   await ctx.plugin(Spawn, { providerName: 'spawn' })
   for (const provider of options.providers ?? []) ctx.subagents.registerProvider(provider)
   let toolSubagentFiber = await ctx.plugin(ToolSubagent, {
     provider: options.toolProvider ?? 'spawn',
     toolName: 'subagent',
-    modelSelection: true,
+    modelSelection: options.modelSelection ?? true,
     modelDiscovery: true,
   })
   const routerFiber = options.config === false ? undefined : await ctx.plugin(Router, options.config ?? {})

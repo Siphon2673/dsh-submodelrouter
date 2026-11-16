@@ -31,6 +31,10 @@ const adapter = {
     }
     return found
   },
+  async prepareCall(provider, model) {
+    const info = await this.resolveModel(provider, model)
+    return { model: info, stream: (options) => this.stream(options) }
+  },
   delegated: false,
   async *stream(options) {
     const promptText = options.messages

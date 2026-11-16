@@ -274,3 +274,13 @@ test('discovery tool exposes no route parameters', () => {
   assert.deepEqual(Object.keys(discovery.parameters.properties), [])
   assert.equal(discovery.output.schema.type, 'string')
 })
+
+test('native surface recognition requires model-selection fields', () => {
+  const { definition } = nativeDefinition()
+  const withoutModel = { ...definition, parameters: structuredClone(definition.parameters) }
+  delete withoutModel.parameters.properties.provider
+  assert.equal(isNativeSubagentDefinition(withoutModel), false)
+  const withoutEffort = { ...definition, parameters: structuredClone(definition.parameters) }
+  delete withoutEffort.parameters.properties.reasoning_effort
+  assert.equal(isNativeSubagentDefinition(withoutEffort), false)
+})

@@ -480,3 +480,45 @@ test('failure of the one Parent fallback propagates without another attempt', as
     await h.dispose()
   }
 })
+
+test('a native row without model selection is left untouched', async () => {
+  const h = await createHarness({ config: {}, modelSelection: false })
+  try {
+    const scope = scopeOf(h.agent.ctx)
+    const schema = h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent')
+    assert.equal(schema.parameters.properties.effort, undefined)
+    assert.equal(schema.parameters.properties.provider, undefined)
+    assert.doesNotMatch(schema.description, /effort tier/i)
+  } finally {
+    await h.dispose()
+  }
+})
+
+test('a capacity rejection is rethrown without Parent fallback', async () => {
+  const h = await createHarness({
+    config: { high: { provider: PROVIDER, model: 'high-model' } },
+    policy: [{ provider: PROVIDER, model: 'high-model' }],
+    maxActiveSubagents: 1,
+    holdText: 'hold child',
+  })
+  try {
+    const first = await h.delegate({ description: 'held', prompt: 'hold child', effort: 'high' })
+    assert.equal(first.isError, false)
+    const child = h.ctx.agents.get(first.value.subagentId)
+    const deadline = Date.now() + 5000
+    while (child?.status !== 'running' && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    assert.equal(child?.status, 'running')
+
+    const second = await h.delegate({ description: 'second', prompt: 'second', effort: 'high' })
+    assert.equal(second.isError, true)
+    assert.match(second.error.message, /active|capacity|limit/i)
+    assert.equal(h.liveAgents(), 2)
+    h.adapter.release()
+    await child.whenIdle()
+  } finally {
+    h.adapter.release()
+    await h.dispose()
+  }
+})

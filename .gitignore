@@ -12,7 +12,8 @@ Thumbs.db
 *.swp
 *~
 
-# Disposable implementation/test workspaces and local caches
+# Disposable implementation/test workspaces and local tool links
+.agents/
 .scratch/
 .dsh-cache/
 .dsh-state/

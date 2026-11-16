@@ -56,7 +56,7 @@ window.__ModuleLoader__.load({
       unavailableForm: 'This plugin is not loaded, so its configuration is unavailable right now.',
       loadingForm: 'Loading configuration…',
       noRoutes: 'No authorized routes are available yet.',
-      needRoute: 'Choose a provider and model, or leave the tier not configured.',
+      incompleteTier: 'Choose both a provider and a model, or clear the tier.',
       configured: 'Configured',
     }
 
@@ -101,7 +101,7 @@ window.__ModuleLoader__.load({
       unavailableForm: '插件当前未加载，因此配置不可用。',
       loadingForm: '正在加载配置…',
       noRoutes: '当前还没有已授权的路由。',
-      needRoute: '请选择 provider 和 model，或让该档位保持未配置。',
+      incompleteTier: '请同时选择 provider 和 model，或清空该档位。',
       configured: '已配置',
     }
 
@@ -142,6 +142,11 @@ window.__ModuleLoader__.load({
     /** Whether two normalized configurations are identical. */
     function sameConfig(left, right) {
       return sameTier(left.normal, right.normal) && sameTier(left.high, right.high)
+    }
+
+    /** A tier with only one half of an exact route is an invalid partial draft. */
+    function tierIsPartial(tier) {
+      return (tier.provider === '') !== (tier.model === '')
     }
 
     /** Locate one exact catalog model. */
@@ -449,6 +454,7 @@ window.__ModuleLoader__.load({
       const routes = allowedRoutesOf(native.value)
       const authorization = native.status === 'ready' ? (native.value?.enabled === true ? 'enabled' : 'disabled') : 'pending'
       const writable = snapshot?.writable !== false
+      const partial = tierIsPartial(value.normal) || tierIsPartial(value.high)
 
       React.useEffect(() => {
         if (draft === null || draftRevision === undefined) return
@@ -480,7 +486,10 @@ window.__ModuleLoader__.load({
       const dirty = draft !== null && !sameConfig(draft, base)
 
       const save = async () => {
-        if (!dirty || disabled) return
+        if (!dirty || disabled || partial) {
+          if (partial) setOutcome('incomplete')
+          return
+        }
         const ops = []
         for (const tier of ['normal', 'high']) {
           const current = base[tier]
@@ -536,13 +545,15 @@ window.__ModuleLoader__.load({
         h(
           'div',
           {
-            border: '0.5px solid var(--dsw-alias-border-l3)',
-            borderRadius: 'var(--dsw-radius-lg)',
-            background: 'var(--dsw-alias-bg-layer-1)',
-            padding: 12,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
+            style: {
+              border: '0.5px solid var(--dsw-alias-border-l3)',
+              borderRadius: 'var(--dsw-radius-lg)',
+              background: 'var(--dsw-alias-bg-layer-1)',
+              padding: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            },
           },
           h(
             'p',
@@ -618,8 +629,12 @@ window.__ModuleLoader__.load({
           onChange: (patch) => edit('high', patch),
           onClearEffort: () => edit('high', { reasoningEffort: undefined }),
         }),
-        dirty && (value.normal.provider === '' || value.normal.model === '') && (value.high.provider === '' || value.high.model === '')
-          ? h('p', { style: { margin: 0, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' } }, t('needRoute'))
+        partial
+          ? h(
+              'p',
+              { role: 'alert', style: { margin: 0, fontSize: 12.5, color: 'var(--dsw-alias-state-error-primary)' } },
+              t('incompleteTier'),
+            )
           : null,
         !writable ? h('p', { role: 'note' }, t('readOnly')) : null,
         conflicted || outcome === 'conflict'
@@ -648,11 +663,11 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              disabled: !dirty || disabled,
+              disabled: !dirty || disabled || partial,
               onClick: () => {
                 void save()
               },
-              style: { ...buttonStyle, opacity: !dirty || disabled ? 0.5 : 1 },
+              style: { ...buttonStyle, opacity: !dirty || disabled || partial ? 0.5 : 1 },
             },
             saving ? t('saving') : t('save'),
           ),

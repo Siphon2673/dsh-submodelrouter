@@ -79,9 +79,10 @@ mapping applies to the next delegation, including in an existing Session; a
 route that the existing Session does not authorize follows Parent fallback.
 Already-created children keep the route they started with.
 
-Saving uses one plugin-owned Save for both tiers. Leaving the page discards an
-unsaved draft, a stale revision is reported instead of overwriting newer values,
-and the plugin never writes the native authorization namespace. Saved routes
+Saving uses one plugin-owned Save for both tiers. A tier with only one half of
+a route blocks Save until it is completed or cleared. Leaving the page discards
+an unsaved draft, a stale revision is reported instead of overwriting newer
+values, and the plugin never writes the native authorization namespace. Saved routes
 that later become unauthorized or unavailable, and saved efforts that become
 unsupported, remain visible and repairable.
 
@@ -102,8 +103,9 @@ the profile after install, uninstall, or enablement changes.
 ## Scope and support boundary
 
 - v1 supports the shipped standard Web profile's local in-process `spawn`
-  `subagent` row. An external-provider row with the same tool name is out of
-  scope.
+  `subagent` row with native model selection enabled. An external-provider row,
+  or a row without the model-selection fields, is out of scope and is left
+  untouched.
 - The `subagent` row must not configure fixed child `agentOptions` or provider
   route defaults if you rely on the "omit `effort` = parent route" guarantee.
   The standard preset has no such defaults; a profile override that adds them is

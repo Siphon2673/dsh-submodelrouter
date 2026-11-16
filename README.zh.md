@@ -60,8 +60,9 @@ dsh plugin --profile web add /absolute/path/to/dsh-submodelrouter
 委派生效（包括已存在的 Session）；旧 Session 未授权的路由会走 Parent fallback。已经
 创建的子代理保持启动时的路由。
 
-两档共用插件自己的一个 Save。离开页面会丢弃未保存草稿；revision 过期会报告冲突而不是
-覆盖较新的值；插件从不写入原生授权命名空间。已保存但后来未授权、不可用或 effort 不再
+两档共用插件自己的一个 Save。某一档只填了路由的一半时会阻止 Save，直到补全或清空。
+离开页面会丢弃未保存草稿；revision 过期会报告冲突而不是覆盖较新的值；插件从不写入原生
+授权命名空间。已保存但后来未授权、不可用或 effort 不再
 受支持的值仍会显示并标记，可继续修复。
 
 ## 停用与卸载
@@ -75,8 +76,9 @@ profile 中，重装同一 row id 可恢复；插件不会删除配置或 Sessio
 
 ## 范围与支持边界
 
-- v1 只支持 shipped standard Web preset 的本地 in-process `spawn` `subagent` 行；
-  使用同名工具的外部 provider 行不在范围内。
+- v1 只支持 shipped standard Web preset 中启用原生 model selection 的本地
+  in-process `spawn` `subagent` 行；外部 provider 行或缺少 model selection 字段的行
+  不在范围内，插件不会修改它们。
 - 若依赖“省略 `effort` = 父路由”的保证，`subagent` 行不能配置固定 child
   `agentOptions` 或 provider 路由默认值。标准 preset 没有这些默认值；自定义 profile
   覆盖不在 v1 保证内，回退文案只描述标准 preset。

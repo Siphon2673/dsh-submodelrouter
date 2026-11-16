@@ -1,0 +1,18 @@
+- insert:
+    - id: smr-e2e-provider
+      name: dsh-smr-e2e-provider
+
+# Route new Sessions to the scripted provider, and authorize both tier routes.
+- id: agent-default-model
+  config:
+    provider: scripted
+    model: parent-model
+
+- id: subagent-model-selection-settings
+  config:
+    enabled: true
+    allowedModels:
+      - provider: scripted
+        model: child-model
+      - provider: scripted
+        model: high-model

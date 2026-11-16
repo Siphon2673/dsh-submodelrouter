@@ -4,6 +4,22 @@
   "description": "Two-tier (normal/high) effort routing for DSH subagent delegation, over the native allowlist and execution path",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Siphon2673/dsh-submodelrouter.git"
+  },
+  "homepage": "https://github.com/Siphon2673/dsh-submodelrouter#readme",
+  "bugs": {
+    "url": "https://github.com/Siphon2673/dsh-submodelrouter/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "subagent",
+    "model-routing",
+    "effort"
+  ],
   "main": "index.js",
   "exports": {
     ".": "./index.js",

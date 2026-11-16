@@ -12,8 +12,8 @@ Thumbs.db
 *.swp
 *~
 
-# Disposable implementation/test workspaces
-.scratch/impl/
-.scratch/e2e-runs/
-.scratch/submodelrouter/e2e-evidence/
+# Disposable implementation/test workspaces and local caches
+.scratch/
+.dsh-cache/
+.dsh-state/
 *.tgz

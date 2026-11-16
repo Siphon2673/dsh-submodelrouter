@@ -511,9 +511,16 @@ test('a capacity rejection is rethrown without Parent fallback', async () => {
     }
     assert.equal(child?.status, 'running')
 
+    let startCalls = 0
+    const startActivation = h.ctx.subagents.startActivation.bind(h.ctx.subagents)
+    h.ctx.subagents.startActivation = async (...args) => {
+      startCalls += 1
+      return await startActivation(...args)
+    }
     const second = await h.delegate({ description: 'second', prompt: 'second', effort: 'high' })
     assert.equal(second.isError, true)
     assert.match(second.error.message, /active|capacity|limit/i)
+    assert.equal(startCalls, 1, 'a fallback would attempt startActivation a second time')
     assert.equal(h.liveAgents(), 2)
     h.adapter.release()
     await child.whenIdle()

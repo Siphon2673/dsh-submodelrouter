@@ -77,8 +77,9 @@ profile 中，重装同一 row id 可恢复；插件不会删除配置或 Sessio
 ## 范围与支持边界
 
 - v1 只支持 shipped standard Web preset 中启用原生 model selection 的本地
-  in-process `spawn` `subagent` 行；外部 provider 行或缺少 model selection 字段的行
-  不在范围内，插件不会修改它们。
+  in-process `spawn` `subagent` 行；外部 provider 行不在范围内。识别基于 schema：
+  缺少评审过的 model selection 字段的行不会被修改，但插件无法证明 row identity，
+  因此暴露相同 schema 的外部 provider 行不在 v1 保证内。
 - 若依赖“省略 `effort` = 父路由”的保证，`subagent` 行不能配置固定 child
   `agentOptions` 或 provider 路由默认值。标准 preset 没有这些默认值；自定义 profile
   覆盖不在 v1 保证内，回退文案只描述标准 preset。

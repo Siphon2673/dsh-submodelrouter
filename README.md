@@ -103,9 +103,11 @@ the profile after install, uninstall, or enablement changes.
 ## Scope and support boundary
 
 - v1 supports the shipped standard Web profile's local in-process `spawn`
-  `subagent` row with native model selection enabled. An external-provider row,
-  or a row without the model-selection fields, is out of scope and is left
-  untouched.
+  `subagent` row with native model selection enabled. An external-provider row
+  is out of scope. Identification is schema-based: a row without the reviewed
+  model-selection fields is left untouched, but the plugin cannot prove row
+  identity, so an external-provider row that exposes the same schema is not
+  covered by the v1 guarantee.
 - The `subagent` row must not configure fixed child `agentOptions` or provider
   route defaults if you rely on the "omit `effort` = parent route" guarantee.
   The standard preset has no such defaults; a profile override that adds them is

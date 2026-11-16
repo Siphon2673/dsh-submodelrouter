@@ -16,9 +16,3 @@
         model: child-model
       - provider: scripted
         model: high-model
-
-# Keep the disposable Session log readable for assertions.
-- id: session-persistence-jsonl
-  config:
-    root: !!js dshHomePath('sessions')
-    compression: none

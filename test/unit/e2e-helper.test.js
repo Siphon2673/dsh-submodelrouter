@@ -42,7 +42,7 @@ test('a failing scenario still removes its disposable root through finally', () 
 test('dsh web refuses a DSH_HOME outside the disposable root', async () => {
   const { startWeb } = await import('../helpers/e2e.js')
   await assert.rejects(
-    startWeb({ root: '/tmp/disposable-root-does-not-exist', env: { DSH_HOME: '/home/elder/.dsh' } }, 1),
+    startWeb({ root: '/tmp/disposable-root-does-not-exist', env: { DSH_HOME: '/tmp/outside-dsh-home' } }, 1),
     /refusing dsh web/,
   )
 })

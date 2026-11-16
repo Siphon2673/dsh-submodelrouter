@@ -486,10 +486,7 @@ window.__ModuleLoader__.load({
       const dirty = draft !== null && !sameConfig(draft, base)
 
       const save = async () => {
-        if (!dirty || disabled || partial) {
-          if (partial) setOutcome('incomplete')
-          return
-        }
+        if (!dirty || disabled || partial) return
         const ops = []
         for (const tier of ['normal', 'high']) {
           const current = base[tier]
@@ -532,6 +529,24 @@ window.__ModuleLoader__.load({
           setOutcome('failed')
         }
       }
+
+      const tierEditors = [
+        { id: 'normal', title: t('normalTitle'), hint: t('normalHint') },
+        { id: 'high', title: t('highTitle'), hint: t('highHint') },
+      ].map((tier) =>
+        h(TierEditor, {
+          key: tier.id,
+          t,
+          title: tier.title,
+          hint: tier.hint,
+          value: value[tier.id],
+          routes,
+          catalog,
+          disabled,
+          onChange: (patch) => edit(tier.id, patch),
+          onClearEffort: () => edit(tier.id, { reasoningEffort: undefined }),
+        }),
+      )
 
       return h(
         'div',
@@ -607,28 +622,7 @@ window.__ModuleLoader__.load({
               t('catalogIssue'),
             )
           : null,
-        h(TierEditor, {
-          t,
-          title: t('normalTitle'),
-          hint: t('normalHint'),
-          value: value.normal,
-          routes,
-          catalog,
-          disabled,
-          onChange: (patch) => edit('normal', patch),
-          onClearEffort: () => edit('normal', { reasoningEffort: undefined }),
-        }),
-        h(TierEditor, {
-          t,
-          title: t('highTitle'),
-          hint: t('highHint'),
-          value: value.high,
-          routes,
-          catalog,
-          disabled,
-          onChange: (patch) => edit('high', patch),
-          onClearEffort: () => edit('high', { reasoningEffort: undefined }),
-        }),
+        ...tierEditors,
         partial
           ? h(
               'p',

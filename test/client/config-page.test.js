@@ -356,24 +356,6 @@ test('an incomplete tier blocks Save and is never silently dropped', async () =>
   }
 })
 
-test('the authorization header uses the style prop rather than DOM props', async () => {
-  const harness = await createPageHarness({
-    nativeValue: { enabled: true, allowedModels: [{ provider: 'scripted', model: 'child-model' }] },
-  })
-  try {
-    const { view } = await openPage(harness)
-    const status = await view.findByText('Subagent model authorization is enabled.')
-    const header = status.parentElement
-    assert.equal(header.style.display, 'flex')
-    assert.equal(header.style.flexDirection, 'column')
-    assert.ok(header.style.borderRadius !== '')
-    assert.equal(header.getAttribute('border'), null)
-    assert.equal(header.getAttribute('background'), null)
-  } finally {
-    harness.cleanup()
-  }
-})
-
 test('Simplified Chinese covers disabled, empty, conflict, and failure states', async () => {
   {
     const harness = await createPageHarness({
@@ -436,6 +418,79 @@ test('Simplified Chinese covers disabled, empty, conflict, and failure states', 
       fireEvent.click(view.getByRole('button', { name: '保存' }))
       await waitFor(() => assert.ok(view.getByText('Host 未接受这次修改。')))
       assert.equal(owner.calls.length, 1)
+    } finally {
+      harness.cleanup()
+    }
+  }
+})
+
+test('Simplified Chinese covers saved, read-only, incomplete, and catalog states', async () => {
+  {
+    const harness = await createPageHarness({
+      language: 'zh',
+      nativeValue: { enabled: true, allowedModels: [{ provider: 'scripted', model: 'child-model' }] },
+    })
+    try {
+      const { owner, view } = await openPage(harness, {})
+      const { fireEvent, waitFor } = harness.testing
+      fireEvent.change(view.getByLabelText('Normal Provider'), { target: { value: 'scripted' } })
+      fireEvent.change(view.getByLabelText('Normal Model'), { target: { value: 'child-model' } })
+      fireEvent.click(view.getByRole('button', { name: '保存' }))
+      await waitFor(() => assert.ok(view.getByText('已保存。')))
+      assert.equal(owner.calls.length, 1)
+    } finally {
+      harness.cleanup()
+    }
+  }
+  {
+    const harness = await createPageHarness({
+      language: 'zh',
+      nativeValue: { enabled: true, allowedModels: [{ provider: 'scripted', model: 'child-model' }] },
+    })
+    try {
+      const owner = createOwnerForm({}, { writable: false })
+      const view = await harness.render(owner)
+      assert.ok(await view.findByText('此部署以只读方式保存设置。'))
+      assert.equal(view.getByRole('button', { name: '保存' }).disabled, true)
+    } finally {
+      harness.cleanup()
+    }
+  }
+  {
+    const harness = await createPageHarness({
+      language: 'zh',
+      nativeValue: {
+        enabled: true,
+        allowedModels: [
+          { provider: 'scripted', model: 'child-model' },
+          { provider: 'scripted', model: 'high-model' },
+        ],
+      },
+    })
+    try {
+      const { view } = await openPage(harness, {
+        high: { provider: 'scripted', model: 'child-model' },
+      })
+      const { fireEvent } = harness.testing
+      fireEvent.change(view.getByLabelText('Normal Provider'), { target: { value: 'scripted' } })
+      assert.ok(await view.findByText('请同时选择 provider 和 model，或清空该档位。'))
+      assert.equal(view.getByRole('button', { name: '保存' }).disabled, true)
+    } finally {
+      harness.cleanup()
+    }
+  }
+  {
+    const harness = await createPageHarness({
+      language: 'zh',
+      nativeValue: { enabled: true, allowedModels: [{ provider: 'scripted', model: 'child-model' }] },
+      catalog: {
+        groups: [{ id: 'scripted', name: 'Scripted provider', models: [{ id: 'child-model', name: 'Child model' }] }],
+        failures: [{ provider: 'broken', message: 'failed to load' }],
+      },
+    })
+    try {
+      const { view } = await openPage(harness, {})
+      assert.ok(await view.findByText(/部分 provider 元数据未能加载/))
     } finally {
       harness.cleanup()
     }

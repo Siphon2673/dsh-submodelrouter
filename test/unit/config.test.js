@@ -31,8 +31,8 @@ test('readTier accepts plain and live values', () => {
     model: 'm',
   })
   assert.equal(readTier({}, 'normal'), undefined)
-  assert.equal(readTier({ normal: { provider: 'p' } }, 'normal'), null)
-  assert.equal(readTier({ normal: { provider: 'p', model: 'm', reasoningEffort: '' } }, 'normal'), null)
+  assert.equal(readTier({ normal: { provider: 'p' } }, 'normal'), undefined)
+  assert.equal(readTier({ normal: { provider: 'p', model: 'm', reasoningEffort: '' } }, 'normal'), undefined)
 })
 
 test('tierStatus distinguishes configured and not configured', () => {

@@ -1,0 +1,3 @@
+- insert:
+    - id: smr-e2e-session-seeder
+      name: dsh-smr-e2e-session-seeder

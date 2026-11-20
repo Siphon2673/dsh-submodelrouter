@@ -123,6 +123,12 @@ the profile after install, uninstall, or enablement changes.
 | --- | --- |
 | `0.2.2-rc.1` | Tested |
 
+### Known incompatible
+
+| DSH version | Reason |
+| --- | --- |
+| `0.2.2-rc.2` – `0.2.2-rc.5` | The Host adapter does not recognize the renamed native `subagent` result (`subagentId` → `name`), so no tier routing is installed and configured tiers have no effect. The Configure page still loads, but it only edits settings. See [#1](https://github.com/Siphon2673/dsh-submodelrouter/issues/1). |
+
 The manifest declares no `engines.dsh` and no pinned DSH peer version, so an
 unverified DSH version is not rejected solely for being unverified. The package
 does declare the Host runtime modules it actually imports as `*` peers and pins

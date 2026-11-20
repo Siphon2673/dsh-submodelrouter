@@ -92,6 +92,12 @@ profile 中，重装同一 row id 可恢复；插件不会删除配置或 Sessio
 | --- | --- |
 | `0.2.2-rc.1` | 已测试 |
 
+### 已知不兼容
+
+| DSH 版本 | 原因 |
+| --- | --- |
+| `0.2.2-rc.2` – `0.2.2-rc.5` | Host 适配器无法识别重命名后的原生 `subagent` 结果（`subagentId` → `name`），因此不会安装档位路由，配置的档位不会生效。Configure 页面仍可加载，但只能编辑设置。见 [#1](https://github.com/Siphon2673/dsh-submodelrouter/issues/1)。 |
+
 manifest 不声明 `engines.dsh`，也不固定 DSH peer 版本，因此未验证的 DSH 版本不会仅因
 “未验证”被拒绝。包会把它实际导入的 Host 运行时模块声明为 `*` peer，并在
 `devDependencies` 中固定同一版本以便构建/测试可复现。`*` 表示有意不设版本门禁，不代表

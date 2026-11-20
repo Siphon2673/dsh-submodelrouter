@@ -7,6 +7,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url))
 const packageJson = JSON.parse(readFileSync(`${root}package.json`, 'utf8'))
 const patch = readFileSync(`${root}cordis.patch.yml`, 'utf8')
 const readme = readFileSync(`${root}README.md`, 'utf8')
+const readmeZh = readFileSync(`${root}README.zh.md`, 'utf8')
 const client = readFileSync(`${root}client.js`, 'utf8')
 
 test('the manifest declares a dual-face bundle without a DSH version gate', () => {
@@ -64,7 +65,7 @@ test('locale resources carry display metadata in English and Simplified Chinese'
   }
 })
 
-test('README lists only tested DSH versions and the support boundary', () => {
+test('README separates tested and known-incompatible DSH versions', () => {
   const versions = [...readme.matchAll(/\|\s*`([^`]+)`\s*\|\s*(Tested|Unverified)/g)].map((match) => match[1])
   assert.deepEqual(versions, ['0.2.2-rc.1'])
   assert.match(readme, /declares no `engines.dsh` and no pinned DSH peer version/i)
@@ -72,4 +73,9 @@ test('README lists only tested DSH versions and the support boundary', () => {
   assert.match(readme, /agentOptions/)
   assert.match(readme, /Parent fallback/)
   assert.match(readme, /Plugin-owned Save|one plugin-owned Save/i)
+  assert.match(readme, /### Known incompatible/)
+  assert.match(readme, /\|\s*`0\.2\.2-rc\.2`\s*–\s*`0\.2\.2-rc\.5`\s*\|/)
+  assert.match(readme, /issues\/1/)
+  assert.match(readmeZh, /### 已知不兼容/)
+  assert.match(readmeZh, /\|\s*`0\.2\.2-rc\.2`\s*–\s*`0\.2\.2-rc\.5`\s*\|/)
 })

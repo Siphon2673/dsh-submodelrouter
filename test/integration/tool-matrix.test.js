@@ -307,7 +307,7 @@ test('prompt guidance and depth are restored without an extra routing nudge', as
       assert.ok(section)
       assert.equal(
         section.text,
-        'Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run. When only waiting for their results remains, end your turn instead of sleeping or polling; the next result starts a new turn.',
+        'Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run. When only waiting for their results remains, end your turn instead of sleeping or polling; the next result starts a new turn. Collect the subagent results required to complete the task before giving the user a final answer.\n\nBash, formatters, code generators, and scripts can overwrite concurrent edits without conflict detection; coordinate their changes explicitly. The agent integrating the work must review the final diff and run relevant tests.',
       )
       const tierSentences = section.text
         .split(/(?<=\.)\s+/)
@@ -481,14 +481,28 @@ test('failure of the one Parent fallback propagates without another attempt', as
   }
 })
 
-test('a native row without model selection is left untouched', async () => {
-  const h = await createHarness({ config: {}, modelSelection: false })
+test('a native row without model selection fails activation instead of silently ignoring tiers', async () => {
+  const h = await createHarness({ config: false })
   try {
-    const scope = scopeOf(h.agent.ctx)
-    const schema = h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent')
-    assert.equal(schema.parameters.properties.effort, undefined)
-    assert.equal(schema.parameters.properties.provider, undefined)
-    assert.doesNotMatch(schema.description, /effort tier/i)
+    await h.toolSubagentFiber.dispose()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    const disposeMalformed = h.ctx.tools.register(fakeDelegation('subagent'))
+    try {
+      const scope = scopeOf(h.agent.ctx)
+      const before = h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent')
+      assert.equal(before.parameters.properties.provider, undefined)
+      await assert.rejects(
+        h.mountRouter({}),
+        /refusing to activate because the visible "subagent" tool does not match the reviewed native structure/,
+      )
+      assert.deepEqual(
+        h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent'),
+        before,
+        'a rejected activation must leave the native delegation surface untouched',
+      )
+    } finally {
+      disposeMalformed()
+    }
   } finally {
     await h.dispose()
   }

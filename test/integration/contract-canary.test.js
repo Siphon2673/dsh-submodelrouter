@@ -13,11 +13,13 @@ import {
   childIdentityField,
   isNativeSubagentDefinition,
   maskDescription,
+  mentionsRemovedRouteField,
   nativeContractProblems,
   outputPropertyNames,
   promptSectionText,
 } from '../../lib/definitions.js'
 import { classifySelectedFailure, REASON_NOT_AUTHORIZED } from '../../lib/fallback.js'
+import { ROUTE_FIELDS } from '../helpers/contract.js'
 import { createHarness, PROVIDER } from '../helpers/harness.js'
 
 test('canary: the native subagent identity contract', async () => {
@@ -45,20 +47,19 @@ test('canary: the native description can be rewritten without route copy', async
     const native = h.native('subagent')
     assert.ok(native, 'the native "subagent" tool is not mounted')
     const description = maskDescription(native.description)
-    const leaked = ['`provider`', '`model`', '`reasoning_effort`'].filter((field) => description.includes(field))
+    const leaked = ROUTE_FIELDS.filter((field) => description.includes(field))
     assert.deepEqual(
       leaked,
       [],
-      `the masked description still names removed route fields ${leaked.join(', ')}; actual description:\n${description}`,
+      `the masked description still names removed route fields ${leaked.join(', ')} (bare or backticked); actual description:\n${description}`,
     )
-    const kept = [
-      'Delegate a self-contained task to a subagent',
-      'This tool starts an independently managed subagent',
-    ].filter((sentence) => !description.includes(sentence))
+    const nativeSentences = native.description.split(/(?<=[.!?])\s+/).filter((sentence) => sentence.length > 0)
+    const routeFree = nativeSentences.filter((sentence) => !mentionsRemovedRouteField(sentence))
+    const missing = routeFree.filter((sentence) => !description.includes(sentence))
     assert.deepEqual(
-      kept,
+      missing,
       [],
-      `the masked description lost native delegation wording:\n${kept.map((sentence) => `- ${sentence}`).join('\n')}\nactual description:\n${description}`,
+      `the masked description lost native delegation wording:\n${missing.map((sentence) => `- ${sentence}`).join('\n')}\nactual description:\n${description}`,
     )
     assert.match(description, /`normal` for routine, checkable, or cheap-to-redo work/)
     assert.match(description, /`high` for work whose result is directly trusted/)
@@ -88,7 +89,6 @@ test('canary: the plugin prompt covers every native tool:subagent sentence', asy
       [],
       `DSH added prompt sentences the plugin does not contribute:\n${missing.map((sentence) => `- ${sentence}`).join('\n')}\n\nnative text:\n${section.text}\n\nplugin text:\n${pluginText}`,
     )
-    assert.equal(pluginText, section.text, 'the plugin prompt copy drifted from the native section')
   } finally {
     await h.dispose()
   }

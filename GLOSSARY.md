@@ -17,7 +17,7 @@ Reporting that a selected effort tier cannot be used and continuing the delegati
 _Avoid_: Silent fallback, error fallback
 
 **Child identity**:
-The identifier a native delegation reports for a started child: `name` on DSH `0.2.2-rc.2` and later, `subagentId` on `0.2.2-rc.1`. Receipts and Parent-fallback warnings use it.
+The identifier a native delegation reports for a started child: `name` on DSH `0.2.2-rc.2` and later, `subagentId` on `0.2.2-rc.1`. The native receipt renders it, and Parent-fallback warnings use it when the adapter recognizes the field.
 _Avoid_: Child ID, subagent ID
 
 **Native allowlist**:

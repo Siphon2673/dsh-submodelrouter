@@ -2,7 +2,6 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { HarnessError, LlmError } from '@deepseek-ai/dsh-llm'
 import {
-  KNOWN_ALLOWLIST_NO_POLICY_SUFFIXES,
   REASON_EFFORT_UNSUPPORTED,
   REASON_NOT_AUTHORIZED,
   REASON_ROUTE_UNAVAILABLE,
@@ -11,16 +10,18 @@ import {
   parentFallbackWarning,
   tierSuffix,
 } from '../../lib/fallback.js'
+import { KNOWN_ALLOWLIST_SUFFIXES } from '../helpers/contract.js'
 
 const route = { provider: 'scripted', model: 'high-model' }
 const base = allowlistMessage(route)
 
 test('classifies the stable native allowlist prefix in every known suffix form', () => {
   assert.equal(classifySelectedFailure(new Error(base), route), REASON_NOT_AUTHORIZED)
-  for (const suffix of KNOWN_ALLOWLIST_NO_POLICY_SUFFIXES) {
+  for (const suffix of KNOWN_ALLOWLIST_SUFFIXES) {
     assert.equal(classifySelectedFailure(new Error(base + suffix), route), REASON_NOT_AUTHORIZED, suffix)
   }
   assert.equal(classifySelectedFailure(new Error(`${base}; a later DSH suffix`), route), REASON_NOT_AUTHORIZED)
+  assert.equal(classifySelectedFailure(new Error(`${base} (a later delimiter)`), route), REASON_NOT_AUTHORIZED)
 })
 
 test('still requires the exact selected provider/model in the prefix', () => {
@@ -30,7 +31,6 @@ test('still requires the exact selected provider/model in the prefix', () => {
     new Error('child LLM route is not allowed for this Session'),
     new Error(`prefix ${base}`),
     new Error(base.toLowerCase()),
-    new Error(`${base} trailing without separator`),
   ]
   for (const error of cases) assert.equal(classifySelectedFailure(error, route), undefined, error.message)
 })

@@ -38,7 +38,7 @@ falls back to one parent-route call, with a visible warning, for:
 - the native Session-allowlist rejection for the selected route. The plugin
   matches its stable route prefix, so the recorded-policy and
   no-recorded-policy (older Session) forms both work, and a later DSH suffix
-  change does not stop Parent fallback;
+  or delimiter change does not stop Parent fallback;
 - an unsupported reasoning effort, unregistered provider, or unknown model on
   the reviewed adapters (the typed `NO_ADAPTER` case included).
 
@@ -46,9 +46,9 @@ The parent call runs once, outside the selected call's retry path. Cancellation,
 depth/capacity, provider-generation changes, startup/admission/catalog failures,
 output failures, malformed arguments, and unknown errors are rethrown without a
 fallback. A failing fallback propagates unchanged; the plugin never attempts a
-second child. Explicit results contain `(effort: normal|high)`; fallback results contain the
-warning and a parent-inheritance statement. The canonical result value is the
-native `{ kind: 'activation', name }`. The warning names the child when the
+second child. Explicit results contain `(effort: normal|high)`; fallback results
+contain the warning and a parent-inheritance statement. The canonical result
+value is the native `{ kind: 'activation', name }`. The warning names the child when the
 native identity field is recognized, and says `the subagent` when it is not;
 the native `started subagent <name>` line always identifies it.
 
@@ -115,10 +115,17 @@ the profile after install, uninstall, or enablement changes.
   without the model-selection fields is not adapted: when it is already visible
   at plugin activation, activation fails and the Plugins row shows it as not
   running; otherwise the Host logs one error per detected shape and leaves
-  native delegation unchanged. Model-facing copy is never a recognition gate;
-  an unknown child-identity field still routes and only degrades the fallback
-  wording. The plugin cannot prove row identity, so an external-provider row
-  that exposes the same structure is not covered by the v1 guarantee.
+  native delegation unchanged. Activation refusal is not retried in the
+  background: after fixing the native surface, re-enable the plugin row or
+  restart the profile to attempt activation again. A mismatch detected after a
+  successful activation is retried on `tools/change` and for new Agents, so it
+  self-heals without a restart once the native surface is restored. When the
+  native description cannot be safely rewritten, the plugin installs its own
+  description and logs one error per detected shape. Model-facing copy is never
+  a recognition gate; an unknown child-identity field still routes and only
+  degrades the fallback wording. The plugin cannot prove row identity, so an
+  external-provider row that exposes the same structure is not covered by the v1
+  guarantee.
 - The `subagent` row must not configure fixed child `agentOptions` or provider
   route defaults if you rely on the "omit `effort` = parent route" guarantee.
   The standard preset has no such defaults; a profile override that adds them is

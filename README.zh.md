@@ -27,7 +27,7 @@
 
 - 该档位未配置；
 - 原生 Session 授权拒绝所选路由：插件按稳定的路由前缀匹配，因此有 recorded policy、
-  旧 Session 无 policy，以及未来 DSH 改动后缀时仍会走 Parent fallback；
+  旧 Session 无 policy，以及未来 DSH 改动后缀或分隔符时仍会走 Parent fallback；
 - 评审过的 adapter 返回不支持 reasoning effort、未注册 provider 或未知模型
   （包括 typed `NO_ADAPTER`）。
 
@@ -84,9 +84,12 @@ profile 中，重装同一 row id 可恢复；插件不会删除配置或 Sessio
   `description`/`prompt`/`provider`/`model`/`reasoning_effort`、`output.render`
   是函数且声明 `kind: 'activation'` 时才接管。缺少 model selection 字段的行不会被
   修改：若激活期已可见，激活失败、Plugins 行显示未运行；否则 Host 按检测到的形状各记
-  一次 `error`，保持原生委派不变。文案从不是识别门槛；身份字段未知时仍会路由，只降级
-  回退措辞。插件无法证明 row identity，因此暴露相同结构的外部 provider 行不在 v1
-  保证内。
+  一次 `error`，保持原生委派不变。激活被拒绝后不会在后台自动重试：修好原生表面后需
+  重新启用该插件行或重启 profile 才会再次尝试激活。成功激活之后才检测到的结构不匹配会
+  在 `tools/change` 和新 Agent 上重试，原生表面恢复后自动自愈，无需重启。原生描述无法
+  安全改写时，插件会使用自有描述并按检测到的形状各记一次 `error`。文案从不是识别门槛；
+  身份字段未知时仍会路由，只降级回退措辞。插件无法证明 row identity，因此暴露相同结构
+  的外部 provider 行不在 v1 保证内。
 - 若依赖“省略 `effort` = 父路由”的保证，`subagent` 行不能配置固定 child
   `agentOptions` 或 provider 路由默认值。标准 preset 没有这些默认值；自定义 profile
   覆盖不在 v1 保证内，回退文案只描述标准 preset。

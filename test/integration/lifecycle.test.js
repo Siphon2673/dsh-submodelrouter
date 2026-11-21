@@ -58,10 +58,10 @@ function unknownIdentityNative(calls, selectedFailures) {
         additionalProperties: false,
         properties: {
           kind: { type: 'string', required: true, const: 'activation' },
-          childId: { type: 'string', required: true },
+          childRef: { type: 'string', required: true },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: `started subagent ${value.childId}` }],
+      render: (_args, value) => [{ type: 'text', text: `started subagent ${value.childRef}` }],
     },
     async execute(args) {
       calls.push(args)
@@ -71,16 +71,16 @@ function unknownIdentityNative(calls, selectedFailures) {
           `child LLM route "${args.provider}/${args.model}" is not allowed for this Session; a future native suffix`,
         )
       }
-      return { kind: 'activation', childId: 'opaque-child' }
+      return { kind: 'activation', childRef: 'opaque-child' }
     },
   })
 }
 
 /** A structurally incomplete definition used to produce a second shape signature. */
-function incompleteNative() {
+function incompleteNative(options = {}) {
   return defineTool({
     name: 'subagent',
-    description: 'A foreign delegation-like tool.',
+    description: options.description ?? 'A foreign delegation-like tool.',
     parameters: {
       description: { type: 'string', required: true },
       prompt: { type: 'string', required: true },
@@ -98,6 +98,52 @@ function incompleteNative() {
     },
     async execute() {
       return { kind: 'activation', name: 'incomplete-child' }
+    },
+  })
+}
+
+/** A structurally valid native definition whose description is only route copy. */
+function routeCopyDescriptionNative(calls) {
+  return defineTool({
+    name: 'subagent',
+    description: 'Supply `provider` and `model` together.',
+    parameters: {
+      description: { type: 'string', required: true },
+      prompt: { type: 'string', required: true },
+      provider: { type: 'string' },
+      model: { type: 'string' },
+      reasoning_effort: { type: 'string' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          kind: { type: 'string', required: true, const: 'activation' },
+          name: { type: 'string', required: true },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: `route-copy started ${value.name}` }],
+    },
+    async execute(args) {
+      calls.push(args)
+      return { kind: 'activation', name: 'route-copy-child' }
+    },
+  })
+}
+
+/** An unrelated tool registration, used to emit one `tools/change` notification. */
+function unrelatedTool() {
+  return defineTool({
+    name: 'unrelated_tool',
+    description: 'An unrelated tool used to trigger a tools/change notification.',
+    parameters: {},
+    output: {
+      schema: { type: 'string' },
+      render: (_args, value) => [{ type: 'text', text: String(value) }],
+    },
+    async execute() {
+      return 'ok'
     },
   })
 }
@@ -264,7 +310,7 @@ test('an unknown child identity still routes and reports the contract once', asy
       const identityErrors = errors.filter((line) => line.includes('child identity'))
       assert.equal(identityErrors.length, 1, errors.join('\n'))
       assert.match(identityErrors[0], /known fields are "name" and "subagentId"/)
-      assert.match(identityErrors[0], /actual output fields are \[childId, kind\]/)
+      assert.match(identityErrors[0], /actual output fields are \[childRef, kind\]/)
 
       const scope = scopeOf(h.agent.ctx)
       const schema = h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent')
@@ -286,6 +332,150 @@ test('an unknown child identity still routes and reports the contract once', asy
     } finally {
       await fiber.dispose()
       disposeNative()
+    }
+  } finally {
+    h.ctx.logger.error = originalError
+    await h.dispose()
+  }
+})
+
+test('a native description that cannot be rewritten is logged once and still masked', async () => {
+  const h = await createHarness({ config: false })
+  const errors = []
+  const originalError = h.ctx.logger.error
+  h.ctx.logger.error = (...args) => {
+    errors.push(args.map(String).join(' '))
+    originalError.apply(h.ctx.logger, args)
+  }
+  const descriptionErrors = () => errors.filter((line) => line.includes('could not be safely rewritten'))
+  try {
+    await h.toolSubagentFiber.dispose()
+    await settle()
+    const calls = []
+    const disposeNative = h.ctx.tools.register(routeCopyDescriptionNative(calls))
+    const fiber = await h.mountRouter({ high: { provider: PROVIDER, model: 'high-model' } })
+    try {
+      assert.equal(descriptionErrors().length, 1, errors.join('\n'))
+      assert.match(descriptionErrors()[0], /using the plugin-owned description/)
+      assert.match(descriptionErrors()[0], /Shape: name="subagent"/)
+
+      const scope = scopeOf(h.agent.ctx)
+      const schema = h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent')
+      assert.deepEqual(schema.parameters.properties.effort.enum, ['normal', 'high'])
+      assert.match(schema.description, /^Delegate a self-contained task to a subagent/)
+      assert.doesNotMatch(schema.description, /`provider`|`model`|`reasoning_effort`/)
+
+      // An unrelated native tool change must not re-report the same shape.
+      const disposeOther = h.ctx.tools.register(unrelatedTool())
+      await settle()
+      assert.equal(descriptionErrors().length, 1, errors.join('\n'))
+      disposeOther()
+      await settle()
+
+      // A new Agent retries installation but the same shape is still reported once.
+      await h.harness.create(SessionId('description-fallback-agent'), { provider: PROVIDER, model: 'parent-model' })
+      await settle()
+      assert.equal(descriptionErrors().length, 1, errors.join('\n'))
+
+      const result = await h.delegate({ description: 'route copy', prompt: 'do it', effort: 'high' })
+      assert.equal(result.isError, false)
+      assert.deepEqual(calls.at(-1), {
+        description: 'route copy',
+        prompt: 'do it',
+        provider: PROVIDER,
+        model: 'high-model',
+      })
+      assert.equal(contentText(result), 'route-copy started route-copy-child (effort: high)')
+      assert.equal(descriptionErrors().length, 1, 'a delegation must not re-report the fallback description')
+    } finally {
+      await fiber.dispose()
+      disposeNative()
+    }
+  } finally {
+    h.ctx.logger.error = originalError
+    await h.dispose()
+  }
+})
+
+test('a rewriteable native description is not reported as a fallback', async () => {
+  const h = await createHarness({ config: false })
+  const errors = []
+  const originalError = h.ctx.logger.error
+  h.ctx.logger.error = (...args) => {
+    errors.push(args.map(String).join(' '))
+    originalError.apply(h.ctx.logger, args)
+  }
+  try {
+    const fiber = await h.mountRouter({})
+    try {
+      await settle()
+      assert.equal(
+        errors.filter((line) => line.includes('could not be safely rewritten')).length,
+        0,
+        errors.join('\n'),
+      )
+      const scope = scopeOf(h.agent.ctx)
+      const schema = h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent')
+      assert.deepEqual(schema.parameters.properties.effort.enum, ['normal', 'high'])
+      assert.doesNotMatch(schema.description, /`provider`|`model`|`reasoning_effort`/)
+    } finally {
+      await fiber.dispose()
+    }
+  } finally {
+    h.ctx.logger.error = originalError
+    await h.dispose()
+  }
+})
+
+test('unreviewed shapes differing only in description or render are reported separately', async () => {
+  const h = await createHarness({ config: false })
+  const errors = []
+  const originalError = h.ctx.logger.error
+  h.ctx.logger.error = (...args) => {
+    errors.push(args.map(String).join(' '))
+    originalError.apply(h.ctx.logger, args)
+  }
+  try {
+    await h.toolSubagentFiber.dispose()
+    await settle()
+    const fiber = await h.mountRouter({})
+    try {
+      assert.equal(errors.length, 0, 'no native surface is visible yet, so nothing is reported')
+
+      // Both definitions are invalid because the model-selection parameters are
+      // missing; the blank description is the only differing signal.
+      let disposeNative = h.ctx.tools.register(incompleteNative({ description: '   ' }))
+      await settle()
+      assert.equal(errors.length, 1, errors.join('\n'))
+
+      disposeNative()
+      await settle()
+      disposeNative = h.ctx.tools.register(incompleteNative())
+      await settle()
+      assert.equal(errors.length, 2, errors.join('\n'))
+      assert.notEqual(errors[0], errors[1])
+      assert.match(errors[0], /description is not a non-empty string/)
+      assert.doesNotMatch(errors[1], /description is not a non-empty string/)
+
+      // A missing render function is the only additional difference here. The
+      // registry rejects a definition without one, so simulate the shape after
+      // registration and let an unrelated registration notify the plugin.
+      disposeNative()
+      await settle()
+      const missingRender = incompleteNative()
+      disposeNative = h.ctx.tools.register(missingRender)
+      await settle()
+      missingRender.output.render = undefined
+      const disposeTrigger = h.ctx.tools.register(unrelatedTool())
+      await settle()
+      assert.equal(errors.length, 3, errors.join('\n'))
+      assert.notEqual(errors[1], errors[2])
+      assert.match(errors[2], /output\.render is not a function/)
+
+      disposeTrigger()
+      disposeNative()
+    } finally {
+      await fiber.dispose()
     }
   } finally {
     h.ctx.logger.error = originalError

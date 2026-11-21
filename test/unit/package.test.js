@@ -65,17 +65,21 @@ test('locale resources carry display metadata in English and Simplified Chinese'
   }
 })
 
-test('README separates tested and known-incompatible DSH versions', () => {
+test('README declares the tested and structurally compatible DSH versions', () => {
   const versions = [...readme.matchAll(/\|\s*`([^`]+)`\s*\|\s*(Tested|Unverified)/g)].map((match) => match[1])
-  assert.deepEqual(versions, ['0.2.2-rc.1'])
+  assert.deepEqual(versions, ['0.2.2-rc.5'])
+  assert.match(readme, /\|\s*`0\.2\.2-rc\.1`\s*\|\s*Structurally compatible, not in the test matrix\s*\|/)
+  assert.doesNotMatch(readme, /### Known incompatible/)
+  assert.doesNotMatch(readme, /`0\.2\.2-rc\.2`\s*–\s*`0\.2\.2-rc\.5`/)
   assert.match(readme, /declares no `engines.dsh` and no pinned DSH peer version/i)
   assert.match(readme, /local in-process `spawn`/)
   assert.match(readme, /agentOptions/)
   assert.match(readme, /Parent fallback/)
   assert.match(readme, /Plugin-owned Save|one plugin-owned Save/i)
-  assert.match(readme, /### Known incompatible/)
-  assert.match(readme, /\|\s*`0\.2\.2-rc\.2`\s*–\s*`0\.2\.2-rc\.5`\s*\|/)
-  assert.match(readme, /issues\/1/)
-  assert.match(readmeZh, /### 已知不兼容/)
-  assert.match(readmeZh, /\|\s*`0\.2\.2-rc\.2`\s*–\s*`0\.2\.2-rc\.5`\s*\|/)
+  assert.match(readme, /Identification is structural/)
+  assert.match(readme, /native `\{ kind: 'activation', name \}`/)
+  assert.match(readmeZh, /\|\s*`0\.2\.2-rc\.5`\s*\|\s*已测试\s*\|/)
+  assert.match(readmeZh, /\|\s*`0\.2\.2-rc\.1`\s*\|\s*结构兼容，未纳入测试矩阵\s*\|/)
+  assert.doesNotMatch(readmeZh, /### 已知不兼容/)
+  assert.doesNotMatch(readmeZh, /`0\.2\.2-rc\.2`\s*–\s*`0\.2\.2-rc\.5`/)
 })

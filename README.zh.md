@@ -9,8 +9,9 @@
 
 ## 模型看到什么
 
-- `subagent` 保留原生委派参数（`description`、`prompt`、`cwd`，原生存在时还有
-  `agent_preset`），移除 `provider`、`model`、`reasoning_effort`。
+- `subagent` 保留原生委派参数（`cwd`、`description`、原生存在时的 `name`、
+  `prompt`，以及原生存在时的 `agent_preset`），移除 `provider`、`model`、
+  `reasoning_effort`。
 - 新增可选 `effort`，只接受 `normal` 或 `high`；其他值在原生执行前被参数校验拒绝。
 - `normal` 用于常规、可检查或容易重做的工作；`high` 用于结果会被直接信任或错误代价
   高昂的工作。它表达“花多少能力”，不是任务类型或难度分数。
@@ -25,16 +26,17 @@
 配置的档位只有在原生委派接受时才会使用。以下情况会执行一次父路由委派并显示警告：
 
 - 该档位未配置；
-- 原生 Session 授权拒绝所选路由（包含有 recorded policy 与旧 Session 无 policy 的
-  两种完整消息形式）；
+- 原生 Session 授权拒绝所选路由：插件按稳定的路由前缀匹配，因此有 recorded policy、
+  旧 Session 无 policy，以及未来 DSH 改动后缀时仍会走 Parent fallback；
 - 评审过的 adapter 返回不支持 reasoning effort、未注册 provider 或未知模型
   （包括 typed `NO_ADAPTER`）。
 
 父路由调用只执行一次，且位于所选调用的 catch/重试路径之外。取消、深度/容量限制、
 provider generation 变化、启动/admission/catalog 失败、输出失败、参数错误和未知错误
 都会原样抛出，不触发回退。回退自身失败会原样传播，插件不会创建第二个子代理。显式
-档位结果包含 `(effort: normal|high)`；回退结果包含警告、原生 child id 和父继承说明。
-规范结果值仍是原生 `{ kind: 'activation', subagentId }`。
+档位结果包含 `(effort: normal|high)`；回退结果包含警告和父继承说明。规范结果值是
+原生 `{ kind: 'activation', name }`。身份字段可识别时警告使用原生名字，不可识别时写作
+`the subagent`；原生 `started subagent <name>` 行始终标明是哪个子代理。
 
 对任意启动错误无法证明“没有创建 child”，因此回退只覆盖上述评审过的 pre-creation
 失败。极少数 LLM adapter 瞬时缺失时，接受结果是一个带警告的父路由 child，绝不重复
@@ -77,9 +79,14 @@ profile 中，重装同一 row id 可恢复；插件不会删除配置或 Sessio
 ## 范围与支持边界
 
 - v1 只支持 shipped standard Web preset 中启用原生 model selection 的本地
-  in-process `spawn` `subagent` 行；外部 provider 行不在范围内。识别基于 schema：
-  缺少评审过的 model selection 字段的行不会被修改，但插件无法证明 row identity，
-  因此暴露相同 schema 的外部 provider 行不在 v1 保证内。
+  in-process `spawn` `subagent` 行；外部 provider 行不在范围内。识别基于结构：
+  只有捕获到的定义名为 `subagent`、description 非空、包含
+  `description`/`prompt`/`provider`/`model`/`reasoning_effort`、`output.render`
+  是函数且声明 `kind: 'activation'` 时才接管。缺少 model selection 字段的行不会被
+  修改：若激活期已可见，激活失败、Plugins 行显示未运行；否则 Host 按检测到的形状各记
+  一次 `error`，保持原生委派不变。文案从不是识别门槛；身份字段未知时仍会路由，只降级
+  回退措辞。插件无法证明 row identity，因此暴露相同结构的外部 provider 行不在 v1
+  保证内。
 - 若依赖“省略 `effort` = 父路由”的保证，`subagent` 行不能配置固定 child
   `agentOptions` 或 provider 路由默认值。标准 preset 没有这些默认值；自定义 profile
   覆盖不在 v1 保证内，回退文案只描述标准 preset。
@@ -90,13 +97,8 @@ profile 中，重装同一 row id 可恢复；插件不会删除配置或 Sessio
 
 | DSH 版本 | 验证状态 |
 | --- | --- |
-| `0.2.2-rc.1` | 已测试 |
-
-### 已知不兼容
-
-| DSH 版本 | 原因 |
-| --- | --- |
-| `0.2.2-rc.2` – `0.2.2-rc.5` | Host 适配器无法识别重命名后的原生 `subagent` 结果（`subagentId` → `name`），因此不会安装档位路由，配置的档位不会生效。Configure 页面仍可加载，但只能编辑设置。见 [#1](https://github.com/Siphon2673/dsh-submodelrouter/issues/1)。 |
+| `0.2.2-rc.5` | 已测试 |
+| `0.2.2-rc.1` | 结构兼容，未纳入测试矩阵 |
 
 manifest 不声明 `engines.dsh`，也不固定 DSH peer 版本，因此未验证的 DSH 版本不会仅因
 “未验证”被拒绝。包会把它实际导入的 Host 运行时模块声明为 `*` peer，并在
@@ -114,7 +116,8 @@ npm run typecheck
 npm test
 ```
 
-浏览器端到端套件需要 Playwright 的 Chromium，因此默认按需运行：
+自动化矩阵以 DSH `0.2.2-rc.5` 为准；`0.2.2-rc.1` 只保留为旧结果形状的单元
+fixture。浏览器端到端套件需要 Playwright 的 Chromium，因此默认按需运行：
 
 ```sh
 npx playwright install --with-deps chromium

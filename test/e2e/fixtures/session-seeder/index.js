@@ -100,14 +100,16 @@ async function create(ctx, artifact) {
   await parent.whenIdle()
 
   const deadline = Date.now() + 60_000
-  let childId
-  while (Date.now() < deadline && childId === undefined) {
-    const children = await ctx.subagents.listChildren(sessionId)
-    childId = children[0]?.id
-    if (childId === undefined) await new Promise((resolve) => setTimeout(resolve, 100))
+  let child
+  while (Date.now() < deadline && child === undefined) {
+    const descendants = await ctx.subagents.listDescendants(sessionId)
+    child = descendants.find((entry) => entry.kind === 'child' && entry.depth === 1)
+    if (child === undefined) await new Promise((resolve) => setTimeout(resolve, 100))
   }
-  if (childId === undefined) throw new Error('the scripted delegation created no child')
-  const child = await waitForChildHistory(ctx, String(childId), deadline)
+  if (child === undefined) throw new Error('the scripted delegation created no child')
+  const childId = String(child.id)
+  const childName = child.name ?? child.path ?? childId
+  const childHistory = await waitForChildHistory(ctx, childId, deadline)
   const parentHistory = await history(ctx, sessionId)
   const result = parentHistory.events.find((event) => event.type === 'tool/result')
   const call = parentHistory.events.find((event) => event.type === 'tool/call')
@@ -115,11 +117,12 @@ async function create(ctx, artifact) {
   await publish(artifact, {
     mode: 'create',
     parentId: sessionId,
-    childId: String(childId),
+    childId,
+    childName,
     call: { name: call.data.name, arguments: call.data.arguments },
     result: { isError: result.data.isError, text: messageText(result.data) },
-    childRequestHeader: child.header.data.header,
-    childEvents: child.events.map((event) => event.type),
+    childRequestHeader: childHistory.header.data.header,
+    childEvents: childHistory.events.map((event) => event.type),
   })
 }
 

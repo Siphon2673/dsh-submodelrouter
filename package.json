@@ -1,6 +1,6 @@
 {
   "name": "dsh-submodelrouter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Two-tier (normal/high) effort routing for DSH subagent delegation, over the native allowlist and execution path",
   "type": "module",
   "license": "MIT",

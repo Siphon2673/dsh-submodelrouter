@@ -15,6 +15,7 @@ import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import * as Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import SessionQuery from '@deepseek-ai/dsh-session-query'
 import { LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { executeModelToolFixture } from '@deepseek-ai/dsh-tool-testkit'
@@ -117,6 +118,7 @@ export async function createHarness(options = {}) {
   await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
   ctx.llm.registerAdapter([PROVIDER], adapter)
   await ctx.plugin(Persistence, { root, compression: 'none' })
+  await ctx.plugin(SessionQuery)
   await ctx.plugin(SubagentRuntime, {
     maxDepth: 1,
     maxActiveSubagents: options.maxActiveSubagents ?? 8,
@@ -129,7 +131,18 @@ export async function createHarness(options = {}) {
     modelSelection: options.modelSelection ?? true,
     modelDiscovery: true,
   })
-  const routerFiber = options.config === false ? undefined : await ctx.plugin(Router, options.config ?? {})
+  let routerFiber
+  if (options.config === false) {
+    routerFiber = undefined
+  } else {
+    try {
+      routerFiber = await ctx.plugin(Router, options.config ?? {})
+    } catch (error) {
+      await ctx.fiber.dispose()
+      rmSync(root, { recursive: true, force: true })
+      throw error
+    }
+  }
   const harness = await mountAgentLoopTestHarness(ctx)
   const count = options.agents ?? 1
   const agents = []
@@ -180,18 +193,36 @@ export async function createHarness(options = {}) {
       return this.call('subagent', args, callOptions)
     },
     /**
-     * Read one live child's effective route.
-     * @param {string} childId - native child id.
-     * @returns {{ agent: any, provider: string | undefined, model: string | undefined, reasoningEffort: string | undefined }} child facts.
+     * Resolve one native child name to its live Session id.
+     * @param {string} identity - native child name, or a Session id.
+     * @returns {Promise<string>} the resolved Session id.
      */
-    child(childId) {
-      const agent = ctx.agents.get(childId)
+    resolveChild(identity) {
+      return ctx.subagents.resolveName(agents[0], identity, new AbortController().signal)
+    },
+    /**
+     * Read one live child's effective route by native name.
+     * @param {string} identity - native child name, or a Session id.
+     * @returns {Promise<{ id: string, agent: any, provider: string | undefined, model: string | undefined, reasoningEffort: string | undefined }>} child facts.
+     */
+    async child(identity) {
+      const id = await this.resolveChild(identity)
+      const agent = ctx.agents.get(id)
       return {
+        id: String(id),
         agent,
         provider: agent?.options?.provider,
         model: agent?.options?.model,
         reasoningEffort: agent?.options?.reasoningEffort,
       }
+    },
+    /**
+     * Read the native definition visible above every Agent scope.
+     * @param {string} name - tool name.
+     * @returns {any} native definition, if mounted.
+     */
+    native(name) {
+      return ctx.tools.get(name)
     },
     /** @returns {number} live Agent count. */
     liveAgents() {

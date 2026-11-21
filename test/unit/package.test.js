@@ -34,10 +34,10 @@ test('genuine DSH runtime peers are ungated and development pins are exact', () 
   assert.ok(dshPeers.length > 0)
   for (const name of dshPeers) {
     assert.equal(packageJson.peerDependencies[name], '*', name)
-    assert.equal(packageJson.devDependencies[name], '0.2.2-rc.1', name)
+    assert.equal(packageJson.devDependencies[name], '0.2.2-rc.5', name)
   }
-  assert.equal(packageJson.devDependencies['@deepseek-ai/dsh-tool-subagent'], '0.2.2-rc.1')
-  assert.equal(packageJson.devDependencies['@deepseek-ai/dsh-tool-testkit'], '0.2.2-rc.1')
+  assert.equal(packageJson.devDependencies['@deepseek-ai/dsh-tool-subagent'], '0.2.2-rc.5')
+  assert.equal(packageJson.devDependencies['@deepseek-ai/dsh-tool-testkit'], '0.2.2-rc.5')
 })
 
 test('the bundle patch inserts one uniquely identified row', () => {

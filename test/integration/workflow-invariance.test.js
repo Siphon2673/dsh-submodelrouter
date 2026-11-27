@@ -31,13 +31,13 @@ function forkDefinition() {
         additionalProperties: false,
         properties: {
           kind: { type: 'string', required: true, const: 'activation' },
-          subagentId: { type: 'string', required: true },
+          name: { type: 'string', required: true },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: `forked subagent ${value.subagentId}` }],
+      render: (_args, value) => [{ type: 'text', text: `forked subagent ${value.name}` }],
     },
     async execute() {
-      return { kind: 'activation', subagentId: 'fork-child' }
+      return { kind: 'activation', name: 'fork-child' }
     },
   })
 }
@@ -66,10 +66,8 @@ class RouteCapturingWorkflowEngine extends WorkflowEngine {
           label: `${request.meta.name} child 1`,
           delivery: 'caller',
           signal: controller.signal,
-          request: {
-            prompt: [{ type: 'text', text: 'workflow child task' }],
-            parent: request.parent,
-          },
+          prompt: [{ type: 'text', text: 'workflow child task' }],
+          parent: request.parent,
         })
         childId = activation.childId
         const child = this.ctx.agents.get(childId)
@@ -146,7 +144,7 @@ test('workflow children keep the parent route and the workflow definition is unt
 
     const forkCall = await h.call('subagent_fork', { description: 'fork', prompt: 'fork it' })
     assert.equal(forkCall.isError, false)
-    assert.deepEqual(forkCall.value, { kind: 'activation', subagentId: 'fork-child' })
+    assert.deepEqual(forkCall.value, { kind: 'activation', name: 'fork-child' })
     assert.equal(contentText(forkCall), 'forked subagent fork-child')
 
     const call = await h.call('workflow', {
@@ -165,7 +163,7 @@ test('workflow children keep the parent route and the workflow definition is unt
     // The configured high tier still applies to the masked tool itself.
     const delegated = await h.delegate({ description: 'high', prompt: 'do it', effort: 'high' })
     assert.equal(delegated.isError, false)
-    const maskedChild = h.child(delegated.value.subagentId)
+    const maskedChild = await h.child(delegated.value.name)
     assert.equal(maskedChild.provider, PROVIDER)
     assert.equal(maskedChild.model, 'high-model')
     assert.equal(maskedChild.reasoningEffort, 'high')

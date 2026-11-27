@@ -2,7 +2,6 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { HarnessError, LlmError } from '@deepseek-ai/dsh-llm'
 import {
-  ALLOWLIST_NO_POLICY_SUFFIX,
   REASON_EFFORT_UNSUPPORTED,
   REASON_NOT_AUTHORIZED,
   REASON_ROUTE_UNAVAILABLE,
@@ -11,23 +10,27 @@ import {
   parentFallbackWarning,
   tierSuffix,
 } from '../../lib/fallback.js'
+import { KNOWN_ALLOWLIST_SUFFIXES } from '../helpers/contract.js'
 
 const route = { provider: 'scripted', model: 'high-model' }
 const base = allowlistMessage(route)
 
-test('classifies both exact native allowlist message forms', () => {
+test('classifies the stable native allowlist prefix in every known suffix form', () => {
   assert.equal(classifySelectedFailure(new Error(base), route), REASON_NOT_AUTHORIZED)
-  assert.equal(classifySelectedFailure(new Error(base + ALLOWLIST_NO_POLICY_SUFFIX), route), REASON_NOT_AUTHORIZED)
+  for (const suffix of KNOWN_ALLOWLIST_SUFFIXES) {
+    assert.equal(classifySelectedFailure(new Error(base + suffix), route), REASON_NOT_AUTHORIZED, suffix)
+  }
+  assert.equal(classifySelectedFailure(new Error(`${base}; a later DSH suffix`), route), REASON_NOT_AUTHORIZED)
+  assert.equal(classifySelectedFailure(new Error(`${base} (a later delimiter)`), route), REASON_NOT_AUTHORIZED)
 })
 
-test('refuses near-miss allowlist text', () => {
+test('still requires the exact selected provider/model in the prefix', () => {
   const cases = [
-    new Error(`${base} `),
-    new Error(base.toLowerCase()),
-    new Error(`prefix ${base}`),
-    new Error(`${base}${ALLOWLIST_NO_POLICY_SUFFIX}; extra`),
-    new Error(allowlistMessage({ provider: 'other', model: 'model' })),
+    new Error(allowlistMessage({ provider: 'other', model: 'high-model' })),
+    new Error(allowlistMessage({ provider: 'scripted', model: 'other-model' })),
     new Error('child LLM route is not allowed for this Session'),
+    new Error(`prefix ${base}`),
+    new Error(base.toLowerCase()),
   ]
   for (const error of cases) assert.equal(classifySelectedFailure(error, route), undefined, error.message)
 })
@@ -54,11 +57,21 @@ test('does not duck-type an arbitrary error code', () => {
   assert.equal(classifySelectedFailure(error, route), undefined)
 })
 
-test('renders the tier suffix and fallback warning', () => {
+test('renders the tier suffix and a named fallback warning', () => {
   assert.equal(tierSuffix('normal'), ' (effort: normal)')
-  const warning = parentFallbackWarning('high', REASON_NOT_AUTHORIZED, 'child-1')
-  assert.match(warning, /effort tier "high"/)
-  assert.match(warning, /not authorized for this Session/)
-  assert.match(warning, /child-1/)
-  assert.match(warning, /started with parent inheritance instead/)
+  const warning = parentFallbackWarning('high', REASON_NOT_AUTHORIZED, 'reviewer')
+  assert.equal(
+    warning,
+    'Warning: effort tier "high" could not be used because its route is not authorized for this Session; subagent reviewer started with parent inheritance instead.',
+  )
+})
+
+test('renders generic fallback wording when the child identity is unknown', () => {
+  for (const identity of [undefined, '']) {
+    const warning = parentFallbackWarning('normal', REASON_ROUTE_UNAVAILABLE, identity)
+    assert.equal(
+      warning,
+      'Warning: effort tier "normal" could not be used because its provider or model is not currently available; the subagent started with parent inheritance instead.',
+    )
+  }
 })

@@ -16,6 +16,10 @@ _Avoid_: Main model, default model
 Reporting that a selected effort tier cannot be used and continuing the delegation with the parent route instead of aborting the call.
 _Avoid_: Silent fallback, error fallback
 
+**Child identity**:
+The identifier a native delegation reports for a started child: `name` on DSH `0.2.2-rc.2` and later, `subagentId` on `0.2.2-rc.1`. The native receipt renders it, and Parent-fallback warnings use it when the adapter recognizes the field.
+_Avoid_: Child ID, subagent ID
+
 **Native allowlist**:
 The user-controlled list of provider/model routes that may be explicitly selected for subagents. It does not govern pure parent inheritance or enumerate reasoning efforts.
 _Avoid_: Model catalog, installed model list

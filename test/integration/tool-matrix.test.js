@@ -18,13 +18,13 @@ function fakeDelegation(name, extra = {}) {
         additionalProperties: false,
         properties: {
           kind: { type: 'string', required: true, const: 'activation' },
-          subagentId: { type: 'string', required: true },
+          name: { type: 'string', required: true },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: `${name} started ${value.subagentId}` }],
+      render: (_args, value) => [{ type: 'text', text: `${name} started ${value.name}` }],
     },
     async execute() {
-      return { kind: 'activation', subagentId: `${name}-child` }
+      return { kind: 'activation', name: `${name}-child` }
     },
   })
 }
@@ -34,14 +34,14 @@ test('mask exposes only effort and tier semantics', async () => {
   try {
     const scope = scopeOf(h.agent.ctx)
     const schema = h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent')
-    assert.deepEqual(Object.keys(schema.parameters.properties), ['cwd', 'description', 'prompt', 'effort'])
+    assert.deepEqual(Object.keys(schema.parameters.properties), ['cwd', 'description', 'name', 'prompt', 'effort'])
     assert.deepEqual(schema.parameters.properties.effort.enum, ['normal', 'high'])
     assert.match(schema.description, /`normal` for routine, checkable, or cheap-to-redo work/)
     assert.match(schema.description, /`high` for work whose result is directly trusted/)
     assert.match(schema.description, /Omit `effort` to inherit the parent route/)
     assert.match(schema.description, /warns and starts the child with parent inheritance/)
-    assert.doesNotMatch(schema.description, /Supply `provider` and `model` together/)
-    assert.doesNotMatch(schema.description, /reasoning_effort/)
+    assert.doesNotMatch(schema.description, /Omit `provider`, `model`, and `reasoning_effort`/)
+    assert.doesNotMatch(schema.description, /`provider`|`model`|`reasoning_effort`/)
     assert.doesNotMatch(schema.description, /shallow/i)
     const discovery = h.ctx.tools.schemas(scope).find((tool) => tool.name === 'list_subagent_models')
     assert.deepEqual(Object.keys(discovery.parameters.properties), [])
@@ -55,9 +55,9 @@ test('omitted effort inherits the parent route when both tiers are unconfigured'
   try {
     const result = await h.delegate({ description: 'routine', prompt: 'do it' })
     assert.equal(result.isError, false)
-    assert.deepEqual(result.value, { kind: 'activation', subagentId: result.value.subagentId })
-    assert.equal(contentText(result), `started subagent ${result.value.subagentId}`)
-    const child = h.child(result.value.subagentId)
+    assert.deepEqual(result.value, { kind: 'activation', name: result.value.name })
+    assert.equal(contentText(result), `started subagent ${result.value.name}`)
+    const child = await h.child(result.value.name)
     assert.equal(child.provider, PROVIDER)
     assert.equal(child.model, 'parent-model')
     assert.equal(child.reasoningEffort, undefined)
@@ -72,8 +72,8 @@ test('omitted effort inherits the parent route when one tier is configured', asy
   try {
     const result = await h.delegate({ description: 'routine', prompt: 'do it' })
     assert.equal(result.isError, false)
-    assert.equal(contentText(result), `started subagent ${result.value.subagentId}`)
-    const child = h.child(result.value.subagentId)
+    assert.equal(contentText(result), `started subagent ${result.value.name}`)
+    const child = await h.child(result.value.name)
     assert.equal(child.provider, PROVIDER)
     assert.equal(child.model, 'parent-model')
   } finally {
@@ -95,13 +95,13 @@ test('normal and high select their configured routes and efforts', async () => {
   try {
     const normal = await h.delegate({ description: 'normal', prompt: 'do it', effort: 'normal' })
     assert.equal(normal.isError, false)
-    assert.equal(contentText(normal), `started subagent ${normal.value.subagentId} (effort: normal)`)
-    assert.equal(h.child(normal.value.subagentId).model, 'child-model')
+    assert.equal(contentText(normal), `started subagent ${normal.value.name} (effort: normal)`)
+    assert.equal((await h.child(normal.value.name)).model, 'child-model')
 
     const high = await h.delegate({ description: 'high', prompt: 'do it', effort: 'high' })
     assert.equal(high.isError, false)
-    assert.equal(contentText(high), `started subagent ${high.value.subagentId} (effort: high)`)
-    const child = h.child(high.value.subagentId)
+    assert.equal(contentText(high), `started subagent ${high.value.name} (effort: high)`)
+    const child = await h.child(high.value.name)
     assert.equal(child.provider, PROVIDER)
     assert.equal(child.model, 'high-model')
     assert.equal(child.reasoningEffort, 'high')
@@ -124,10 +124,10 @@ test('both tiers may share one route with different efforts', async () => {
     const high = await h.delegate({ description: 'high', prompt: 'do it', effort: 'high' })
     assert.equal(normal.isError, false)
     assert.equal(high.isError, false)
-    assert.equal(h.child(normal.value.subagentId).model, 'child-model')
-    assert.equal(h.child(normal.value.subagentId).reasoningEffort, 'low')
-    assert.equal(h.child(high.value.subagentId).model, 'child-model')
-    assert.equal(h.child(high.value.subagentId).reasoningEffort, 'high')
+    assert.equal((await h.child(normal.value.name)).model, 'child-model')
+    assert.equal((await h.child(normal.value.name)).reasoningEffort, 'low')
+    assert.equal((await h.child(high.value.name)).model, 'child-model')
+    assert.equal((await h.child(high.value.name)).reasoningEffort, 'high')
   } finally {
     await h.dispose()
   }
@@ -155,8 +155,8 @@ test('an unauthorized configured route warns and creates one parent-route child'
     assert.equal(result.isError, false)
     const text = contentText(result)
     assert.match(text, /Warning: effort tier "high" could not be used because its route is not authorized for this Session/)
-    assert.match(text, new RegExp(`${result.value.subagentId} started with parent inheritance instead`))
-    const child = h.child(result.value.subagentId)
+    assert.match(text, new RegExp(`${result.value.name} started with parent inheritance instead`))
+    const child = await h.child(result.value.name)
     assert.equal(child.provider, PROVIDER)
     assert.equal(child.model, 'parent-model')
     assert.equal(h.liveAgents(), 2)
@@ -171,7 +171,7 @@ test('an old Session with no recorded policy uses the suffixed allowlist rejecti
     const result = await h.delegate({ description: 'high', prompt: 'do it', effort: 'high' })
     assert.equal(result.isError, false)
     assert.match(contentText(result), /not authorized for this Session/)
-    assert.equal(h.child(result.value.subagentId).model, 'parent-model')
+    assert.equal((await h.child(result.value.name)).model, 'parent-model')
   } finally {
     await h.dispose()
   }
@@ -186,7 +186,7 @@ test('an unsupported reasoning effort warns and creates one parent-route child',
     const result = await h.delegate({ description: 'high', prompt: 'do it', effort: 'high' })
     assert.equal(result.isError, false)
     assert.match(contentText(result), /its reasoning effort is not supported by the model/)
-    assert.equal(h.child(result.value.subagentId).model, 'parent-model')
+    assert.equal((await h.child(result.value.name)).model, 'parent-model')
     assert.equal(h.liveAgents(), 2)
   } finally {
     await h.dispose()
@@ -202,7 +202,7 @@ test('a missing adapter follows the one-fallback policy', async () => {
     const result = await h.delegate({ description: 'high', prompt: 'do it', effort: 'high' })
     assert.equal(result.isError, false)
     assert.match(contentText(result), /its provider or model is not currently available/)
-    assert.equal(h.child(result.value.subagentId).model, 'parent-model')
+    assert.equal((await h.child(result.value.name)).model, 'parent-model')
     assert.equal(h.liveAgents(), 2)
   } finally {
     await h.dispose()
@@ -218,7 +218,7 @@ test('an unknown model on the reviewed adapter follows the one-fallback policy',
     const result = await h.delegate({ description: 'high', prompt: 'do it', effort: 'high' })
     assert.equal(result.isError, false)
     assert.match(contentText(result), /its provider or model is not currently available/)
-    assert.equal(h.child(result.value.subagentId).model, 'parent-model')
+    assert.equal((await h.child(result.value.name)).model, 'parent-model')
   } finally {
     await h.dispose()
   }
@@ -249,8 +249,8 @@ test('an explicit result matches the pinned fixture', async () => {
   try {
     const explicit = await h.delegate({ description: 'high', prompt: 'do it', effort: 'high' })
     assert.equal(explicit.isError, false)
-    assert.deepEqual(Object.keys(explicit.value).sort(), ['kind', 'subagentId'])
-    assert.equal(contentText(explicit), `started subagent ${explicit.value.subagentId} (effort: high)`)
+    assert.deepEqual(Object.keys(explicit.value).sort(), ['kind', 'name'])
+    assert.equal(contentText(explicit), `started subagent ${explicit.value.name} (effort: high)`)
   } finally {
     await h.dispose()
   }
@@ -264,10 +264,10 @@ test('a fallback result matches the pinned fixture', async () => {
   try {
     const fallback = await h.delegate({ description: 'high', prompt: 'do it', effort: 'high' })
     assert.equal(fallback.isError, false)
-    assert.deepEqual(Object.keys(fallback.value).sort(), ['kind', 'subagentId'])
+    assert.deepEqual(Object.keys(fallback.value).sort(), ['kind', 'name'])
     assert.equal(
       contentText(fallback),
-      `started subagent ${fallback.value.subagentId}\n\nWarning: effort tier "high" could not be used because its route is not authorized for this Session; subagent ${fallback.value.subagentId} started with parent inheritance instead.`,
+      `started subagent ${fallback.value.name}\n\nWarning: effort tier "high" could not be used because its route is not authorized for this Session; subagent ${fallback.value.name} started with parent inheritance instead.`,
     )
   } finally {
     await h.dispose()
@@ -307,7 +307,7 @@ test('prompt guidance and depth are restored without an extra routing nudge', as
       assert.ok(section)
       assert.equal(
         section.text,
-        'Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run. When only waiting for their results remains, end your turn instead of sleeping or polling; the next result starts a new turn.',
+        'Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run. When only waiting for their results remains, end your turn instead of sleeping or polling; the next result starts a new turn. Collect the subagent results required to complete the task before giving the user a final answer.\n\nBash, formatters, code generators, and scripts can overwrite concurrent edits without conflict detection; coordinate their changes explicitly. The agent integrating the work must review the final diff and run relevant tests.',
       )
       const tierSentences = section.text
         .split(/(?<=\.)\s+/)
@@ -319,7 +319,7 @@ test('prompt guidance and depth are restored without an extra routing nudge', as
 
     const result = await h.delegate({ description: 'depth', prompt: 'do it' })
     assert.equal(result.isError, false)
-    const child = h.ctx.agents.get(result.value.subagentId)
+    const child = (await h.child(result.value.name)).agent
     const childAssembly = await h.ctx.systemPrompt.assemble(assembleContextFor(child))
     const depth = childAssembly.contexts.find((entry) => entry.name === 'tool:subagent:depth')
     assert.equal(
@@ -384,7 +384,7 @@ test('a depth rejection from a child is rethrown without Parent fallback', async
   try {
     const first = await h.delegate({ description: 'first', prompt: 'do it', effort: 'high' })
     assert.equal(first.isError, false)
-    const child = h.ctx.agents.get(first.value.subagentId)
+    const child = (await h.child(first.value.name)).agent
     assert.ok(child)
     const result = await h.ctx.tools.execute({
       calls: [
@@ -414,7 +414,7 @@ test('incomplete tier configuration warns and creates one parent-route child', a
     const result = await h.delegate({ description: 'incomplete', prompt: 'do it', effort: 'normal' })
     assert.equal(result.isError, false)
     assert.match(contentText(result), /the selected tier is not configured/)
-    assert.equal(h.child(result.value.subagentId).model, 'parent-model')
+    assert.equal((await h.child(result.value.name)).model, 'parent-model')
     assert.equal(h.liveAgents(), 2)
   } finally {
     await h.dispose()
@@ -481,14 +481,28 @@ test('failure of the one Parent fallback propagates without another attempt', as
   }
 })
 
-test('a native row without model selection is left untouched', async () => {
-  const h = await createHarness({ config: {}, modelSelection: false })
+test('a native row without model selection fails activation instead of silently ignoring tiers', async () => {
+  const h = await createHarness({ config: false })
   try {
-    const scope = scopeOf(h.agent.ctx)
-    const schema = h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent')
-    assert.equal(schema.parameters.properties.effort, undefined)
-    assert.equal(schema.parameters.properties.provider, undefined)
-    assert.doesNotMatch(schema.description, /effort tier/i)
+    await h.toolSubagentFiber.dispose()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    const disposeMalformed = h.ctx.tools.register(fakeDelegation('subagent'))
+    try {
+      const scope = scopeOf(h.agent.ctx)
+      const before = h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent')
+      assert.equal(before.parameters.properties.provider, undefined)
+      await assert.rejects(
+        h.mountRouter({}),
+        /refusing to activate because the visible "subagent" tool does not match the reviewed native structure/,
+      )
+      assert.deepEqual(
+        h.ctx.tools.schemas(scope).find((tool) => tool.name === 'subagent'),
+        before,
+        'a rejected activation must leave the native delegation surface untouched',
+      )
+    } finally {
+      disposeMalformed()
+    }
   } finally {
     await h.dispose()
   }
@@ -504,7 +518,7 @@ test('a capacity rejection is rethrown without Parent fallback', async () => {
   try {
     const first = await h.delegate({ description: 'held', prompt: 'hold child', effort: 'high' })
     assert.equal(first.isError, false)
-    const child = h.ctx.agents.get(first.value.subagentId)
+    const child = (await h.child(first.value.name)).agent
     const deadline = Date.now() + 5000
     while (child?.status !== 'running' && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 10))

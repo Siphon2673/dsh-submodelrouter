@@ -11,9 +11,9 @@ selector. It reads the native Subagent allowlist and never changes it.
 
 ## What the model sees
 
-- `subagent` keeps its native delegation parameters (`description`, `prompt`,
-  and `cwd`, plus `agent_preset` when the native tool exposes it) and drops
-  `provider`, `model`, and `reasoning_effort`.
+- `subagent` keeps its native delegation parameters (`cwd`, `description`,
+  `name` when the native tool exposes it, `prompt`, plus `agent_preset` when
+  exposed) and drops `provider`, `model`, and `reasoning_effort`.
 - One optional `effort` parameter accepts only `normal` or `high`. Any other
   value fails argument validation before the native execution runs.
 - `normal` is for routine, checkable, or cheap-to-redo work; `high` is for work
@@ -35,8 +35,10 @@ A configured tier is used only when native delegation accepts it. The plugin
 falls back to one parent-route call, with a visible warning, for:
 
 - a tier that is not configured;
-- the exact native Session-allowlist rejection for the selected route, in both
-  the recorded-policy and no-recorded-policy (older Session) forms;
+- the native Session-allowlist rejection for the selected route. The plugin
+  matches its stable route prefix, so the recorded-policy and
+  no-recorded-policy (older Session) forms both work, and a later DSH suffix
+  or delimiter change does not stop Parent fallback;
 - an unsupported reasoning effort, unregistered provider, or unknown model on
   the reviewed adapters (the typed `NO_ADAPTER` case included).
 
@@ -45,8 +47,10 @@ depth/capacity, provider-generation changes, startup/admission/catalog failures,
 output failures, malformed arguments, and unknown errors are rethrown without a
 fallback. A failing fallback propagates unchanged; the plugin never attempts a
 second child. Explicit results contain `(effort: normal|high)`; fallback results
-contain the warning, the native child id, and a parent-inheritance statement.
-The canonical result value is the native `{ kind: 'activation', subagentId }`.
+contain the warning and a parent-inheritance statement. The canonical result
+value is the native `{ kind: 'activation', name }`. The warning names the child when the
+native identity field is recognized, and says `the subagent` when it is not;
+the native `started subagent <name>` line always identifies it.
 
 Fallback cannot prove that no child exists for arbitrary startup errors, so it
 is deliberately limited to the reviewed pre-creation failures above. In the
@@ -104,10 +108,24 @@ the profile after install, uninstall, or enablement changes.
 
 - v1 supports the shipped standard Web profile's local in-process `spawn`
   `subagent` row with native model selection enabled. An external-provider row
-  is out of scope. Identification is schema-based: a row without the reviewed
-  model-selection fields is left untouched, but the plugin cannot prove row
-  identity, so an external-provider row that exposes the same schema is not
-  covered by the v1 guarantee.
+  is out of scope. Identification is structural: the plugin adapts the row only
+  when the captured definition is named `subagent`, has a non-empty description,
+  exposes `description`, `prompt`, `provider`, `model`, and `reasoning_effort`,
+  has an `output.render` function, and declares `kind: 'activation'`. A row
+  without the model-selection fields is not adapted: when it is already visible
+  at plugin activation, activation fails and the Plugins row shows it as not
+  running; otherwise the Host logs one error per detected shape and leaves
+  native delegation unchanged. Activation refusal is not retried in the
+  background: after fixing the native surface, re-enable the plugin row or
+  restart the profile to attempt activation again. A mismatch detected after a
+  successful activation is retried on `tools/change` and for new Agents, so it
+  self-heals without a restart once the native surface is restored. When the
+  native description cannot be safely rewritten, the plugin installs its own
+  description and logs one error per detected shape. Model-facing copy is never
+  a recognition gate; an unknown child-identity field still routes and only
+  degrades the fallback wording. The plugin cannot prove row identity, so an
+  external-provider row that exposes the same structure is not covered by the v1
+  guarantee.
 - The `subagent` row must not configure fixed child `agentOptions` or provider
   route defaults if you rely on the "omit `effort` = parent route" guarantee.
   The standard preset has no such defaults; a profile override that adds them is
@@ -121,13 +139,8 @@ the profile after install, uninstall, or enablement changes.
 
 | DSH version | Verification status |
 | --- | --- |
-| `0.2.2-rc.1` | Tested |
-
-### Known incompatible
-
-| DSH version | Reason |
-| --- | --- |
-| `0.2.2-rc.2` – `0.2.2-rc.5` | The Host adapter does not recognize the renamed native `subagent` result (`subagentId` → `name`), so no tier routing is installed and configured tiers have no effect. The Configure page still loads, but it only edits settings. See [#1](https://github.com/Siphon2673/dsh-submodelrouter/issues/1). |
+| `0.2.2-rc.5` | Tested |
+| `0.2.2-rc.1` | Structurally compatible, not in the test matrix |
 
 The manifest declares no `engines.dsh` and no pinned DSH peer version, so an
 unverified DSH version is not rejected solely for being unverified. The package
@@ -150,7 +163,9 @@ npm run typecheck
 npm test
 ```
 
-The browser end-to-end suite is opt-in because it needs Playwright's Chromium:
+The automated matrix runs against DSH `0.2.2-rc.5`; `0.2.2-rc.1` is retained only
+as a unit fixture for the previous result shape. The browser end-to-end suite is
+opt-in because it needs Playwright's Chromium:
 
 ```sh
 npx playwright install --with-deps chromium

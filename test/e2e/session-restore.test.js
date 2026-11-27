@@ -169,7 +169,7 @@ test(
       assert.equal(created.call.name, 'subagent')
       assert.match(created.call.arguments, /"effort":"high"/)
       assert.notEqual(created.result.isError, true)
-      assert.equal(created.result.text, `started subagent ${created.childId} (effort: high)`)
+      assert.equal(created.result.text, `started subagent ${created.childName} (effort: high)`)
       assert.deepEqual(created.childRequestHeader.config, {
         provider: 'scripted',
         model: 'high-model',
@@ -181,6 +181,7 @@ test(
         step: 'masked-delegation-created',
         parentId: created.parentId,
         childId: created.childId,
+        childName: created.childName,
         childRoute: created.childRequestHeader.config,
         resultDigest: digest(created.result.text),
       })
@@ -260,7 +261,7 @@ test(
       await domClick(page.getByRole('button', { name: /Open e2e delegation in sidebar/ }))
       await waitForText(page, 'do a delegated task', 20_000)
       const childBody = await page.locator('body').textContent()
-      assert.match(childBody, /Your parent agent id is "session-/)
+      assert.match(childBody, /delivered automatically if your parent is still online/)
       assert.match(childBody, /scripted answer/)
       evidence.steps.push({ step: 'histories-reopened-in-web-ui' })
       assert.deepEqual(pageErrors, [])

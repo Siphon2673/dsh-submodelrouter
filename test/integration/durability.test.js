@@ -12,6 +12,7 @@ import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import * as Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import SessionQuery from '@deepseek-ai/dsh-session-query'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { MessageId, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { ScriptedAdapter, PROVIDER } from '../helpers/harness.js'
@@ -56,6 +57,7 @@ async function mountContext(root, withRouter) {
   await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
   ctx.llm.registerAdapter([PROVIDER], new DelegatingAdapter())
   await ctx.plugin(Persistence, { root, compression: 'none' })
+  await ctx.plugin(SessionQuery)
   await ctx.plugin(SubagentRuntime, { maxDepth: 1, maxActiveSubagents: 8 })
   await ctx.plugin(Spawn, { providerName: 'spawn' })
   await ctx.plugin(ToolSubagent, {
@@ -105,9 +107,10 @@ test('parent and child Sessions restore after uninstall without a plugin project
       .filter((block) => block.type === 'text')
       .map((block) => block.text)
       .join('')
-    const match = resultText.match(/started subagent ([0-9a-f-]+) \(effort: high\)/)
+    const match = resultText.match(/started subagent ([a-z0-9-]+) \(effort: high\)/)
     assert.ok(match, resultText)
-    const childId = match[1]
+    const childName = match[1]
+    const childId = await first.ctx.subagents.resolveName(parent, childName, new AbortController().signal)
     assert.equal(first.ctx.agents.get(childId)?.options.model, 'high-model')
     await first.routerFiber.dispose()
     await first.ctx.fiber.dispose()
